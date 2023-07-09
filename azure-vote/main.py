@@ -124,11 +124,11 @@ def index():
 
         # Get current values
         vote1 = r.get(button1).decode('utf-8')
-	    # TODO: use tracer object to trace cat vote
+        # TODO: use tracer object to trace cat vote
         with tracer.span(name="Cats Vote") as span:
-            loggger.info("Cats Vote")
+            logger.info("Cats Vote")
 
-	    with tracer.span(name="Dogs Vote") as span:
+        with tracer.span(name="Dogs Vote") as span:
             logger.info("Dogs Vote")
 
 
