@@ -4,11 +4,66 @@ import random
 import redis
 import socket
 import sys
+from opencensus.ext.azure.log_exporter import AzureLogHandler
+from opencensus.ext.azure.log_exporter import AzureEventHandler
+from opencensus.ext.azure import metrics_exporter
+from opencensus.stats import aggregation as aggregation_module
+from opencensus.stats import measure as measure_module
+from opencensus.stats import stats as stats_module
+from opencensus.stats import view as view_module
+from opencensus.tags import tag_map as tag_map_module
+from opencensus.trace import config_integration
+from opencensus.ext.azure.trace_exporter import AzureExporter
+from opencensus.trace.samplers import ProbabilitySampler
+from opencensus.trace.tracer import Tracer
+from opencensus.ext.flask.flask_middleware import FlaskMiddleware
+# For metrics
+stats = stats_module.stats
+view_manager = stats.view_manager
+
+# Adding logger for custom events
+config_integration.trace_integrations(['logging'])
+config_integration.trace_integrations(['requests'])
+# Standard Logging
+logger = logging.getLogger(__name__)
+handler = AzureLogHandler(connection_string='InstrumentationKey=9559e5cb-afcb-4a47-8b78-79c42de51f91')
+handler.setFormatter(logging.Formatter('%(traceId)s %(spanId)s %(message)s'))
+logger.addHandler(handler)
+# Logging custom Events
+logger.addHandler(AzureEventHandler(connection_string='InstrumentationKey=9559e5cb-afcb-4a47-8b78-79c42de51f91'))
+# Set the logging level
+logger.setLevel(logging.INFO)
+
+## Adding metrics
+# Metrics
+exporter = metrics_exporter.new_metrics_exporter(
+  enable_standard_metrics=True,
+  connection_string='InstrumentationKey=9559e5cb-afcb-4a47-8b78-79c42de51f91')
+view_manager.register_exporter(exporter)
+
+tracer = Tracer(
+    exporter=AzureExporter(
+        connection_string='InstrumentationKey=9559e5cb-afcb-4a47-8b78-79c42de51f91'),
+    sampler=ProbabilitySampler(1.0),
+)
+
+
+
 
 app = Flask(__name__)
 
 # Load configurations from environment or config file
 app.config.from_pyfile('config_file.cfg')
+
+# Requests
+middleware = FlaskMiddleware(
+    app,
+    exporter=AzureExporter(connection_string="InstrumentationKey=9559e5cb-afcb-4a47-8b78-79c42de51f91"),
+    sampler=ProbabilitySampler(rate=1.0)
+)
+
+
+
 
 if ("VOTE1VALUE" in os.environ and os.environ['VOTE1VALUE']):
     button1 = os.environ['VOTE1VALUE']
@@ -26,11 +81,12 @@ else:
     title = app.config['TITLE']
 
 # Redis Connection to a local server running on the same machine where the current FLask app is running. 
-r = redis.Redis()
+#r = redis.Redis()
 
 """
 # The commented section below is used while deploying the application with two separate containers - 
 # One container for Redis and another for the frontend. 
+"""
 
 # Redis configurations
 redis_server = os.environ['REDIS']
@@ -45,7 +101,7 @@ try:
     r.ping()
 except redis.ConnectionError:
     exit('Failed to connect to Redis, terminating.')
-"""
+
 
 # Change title to host name to demo NLB
 if app.config['SHOWHOST'] == "true":
